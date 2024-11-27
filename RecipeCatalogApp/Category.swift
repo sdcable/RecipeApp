@@ -9,10 +9,12 @@ import Foundation
 import SwiftData
 
 @Model
-final class Category {
+final class Category: Identifiable {
     var name: String
     @Relationship
     var recipes: [Recipe]
+    
+    var id: UUID = UUID()
 
     init(name: String) {
         self.name = name

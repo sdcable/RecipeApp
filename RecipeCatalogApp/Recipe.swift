@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Recipe {
+final class Recipe{
     var title: String
     var ingredients: String
     var instructions: String
