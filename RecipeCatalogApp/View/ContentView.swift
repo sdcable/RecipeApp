@@ -31,23 +31,26 @@ struct DefaultMainView: View {
 
     // MARK: - Category List View
     private var categoryList: some View {
-        List(categories, id: \.id) { category in
-            HStack {
-                Text(category.name)
-                    .foregroundColor(selectedCategory == category ? .blue : .primary)
-                Spacer()
-                if selectedCategory == category {
-                    Image(systemName: "checkmark")
-                        .foregroundColor(.blue)
-                }
+        List {
+            // "View All Recipes" NavigationLink
+            NavigationLink(destination: AllRecipesView()) {
+                Text("View All Recipes")
+                    .fontWeight(.bold)
+                    .foregroundColor(.blue)
             }
-            .contentShape(Rectangle()) // Makes the entire row tappable
-            .onTapGesture {
-                selectedCategory = (selectedCategory == category) ? nil : category
+
+            // Categories NavigationLinks
+            ForEach(categories, id: \.id) { category in
+                NavigationLink(destination: FilteredRecipesView(category: category)) {
+                    Text(category.name)
+                        .foregroundColor(.primary)
+                }
             }
         }
         .navigationBarTitle("Categories")
     }
+
+
 
     // MARK: - Recipe List View
     private var recipeList: some View {
@@ -324,6 +327,222 @@ struct DefaultMainView: View {
         .modelContainer(for: [Recipe.self, Category.self], inMemory: true)
 }
 
+struct AllRecipesView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var recipes: [Recipe]
+    @State private var isPresentingAddRecipeView: Bool = false
+    
+    @State private var searchText: String = ""
+    @State private var showFavoritesOnly: Bool = false
+    @State private var sortAlphabetically: Bool = false
+    
+    var body: some View {
+        VStack {
+            filterAndSortOptions
+
+            List {
+                let filteredRecipes = getFilteredRecipes()
+                    .filter { recipe in
+                        searchText.isEmpty || recipe.searchString.localizedCaseInsensitiveContains(searchText)
+                    }
+
+                if filteredRecipes.isEmpty {
+                    Text("No recipes available.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(filteredRecipes) { recipe in
+                        NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
+                            recipeRow(recipe: recipe)
+                        }
+                    }
+                    .onDelete(perform: deleteItems)
+                }
+            }
+            .sheet(isPresented: $isPresentingAddRecipeView) {
+                AddRecipeView(isPresented: $isPresentingAddRecipeView)
+            }
+            .navigationTitle("All Recipes")
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always))
+        }
+    }
+    
+    private var filterAndSortOptions: some View {
+        HStack {
+            Toggle("Favorites Only", isOn: $showFavoritesOnly)
+                .toggleStyle(.switch)
+            Spacer()
+            Toggle("Sort A-Z", isOn: $sortAlphabetically)
+                .toggleStyle(.switch)
+        }
+        .padding([.horizontal, .top])
+    }
+    
+    private func getFilteredRecipes() -> [Recipe] {
+        var result = recipes
+
+        if showFavoritesOnly {
+            result = result.filter { $0.favorite_bool }
+        }
+
+        if sortAlphabetically {
+            result = result.sorted { $0.title < $1.title }
+        }
+
+        return result
+    }
+    
+    private func recipeRow(recipe: Recipe) -> some View {
+        HStack {
+            Button(action: {
+                toggleFavorite(for: recipe)
+            }) {
+                Image(systemName: recipe.favorite_bool ? "star.fill" : "star")
+                    .foregroundColor(recipe.favorite_bool ? .yellow : .gray)
+            }
+            .buttonStyle(BorderlessButtonStyle())
+
+            VStack(alignment: .leading) {
+                Text(recipe.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(recipe.ingredients)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func toggleFavorite(for recipe: Recipe) {
+        if let index = recipes.firstIndex(where: { $0.id == recipe.id }) {
+            withAnimation {
+                recipes[index].favorite_bool.toggle()
+            }
+        }
+    }
+    
+    // MARK: - Deleting Items
+    private func deleteItems(offsets: IndexSet) {
+        withAnimation {
+            for index in offsets {
+                modelContext.delete(recipes[index])
+            }
+        }
+    }
+}
+
+
+struct FilteredRecipesView: View {
+    @Environment(\.modelContext) private var modelContext
+    let category: Category
+    @Query private var recipes: [Recipe]
+    @State private var isPresentingAddRecipeView: Bool = false
+    
+    @State private var searchText: String = ""
+    @State private var showFavoritesOnly: Bool = false
+    @State private var sortAlphabetically: Bool = false
+    
+    var body: some View {
+        VStack {
+            filterAndSortOptions
+
+            List {
+                let filteredRecipes = getFilteredRecipes()
+                    .filter { recipe in
+                        searchText.isEmpty || recipe.searchString.localizedCaseInsensitiveContains(searchText)
+                    }
+
+                if filteredRecipes.isEmpty {
+                    Text("No recipes available for this category.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(filteredRecipes) { recipe in
+                        NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
+                            recipeRow(recipe: recipe)
+                        }
+                    }
+                    .onDelete(perform: deleteItems)
+                }
+            }
+            .sheet(isPresented: $isPresentingAddRecipeView) {
+                AddRecipeView(isPresented: $isPresentingAddRecipeView)
+            }
+            .navigationTitle(category.name)
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always))
+        }
+    }
+    
+    // Reuse filter and sort options from the main view
+    private var filterAndSortOptions: some View {
+        HStack {
+            Toggle("Favorites Only", isOn: $showFavoritesOnly)
+                .toggleStyle(.switch)
+            Spacer()
+            Toggle("Sort A-Z", isOn: $sortAlphabetically)
+                .toggleStyle(.switch)
+        }
+        .padding([.horizontal, .top])
+    }
+    
+    private func getFilteredRecipes() -> [Recipe] {
+        var result = recipes.filter { recipe in
+            recipe.categories.contains(where: { $0.id == category.id })
+        }
+
+        if showFavoritesOnly {
+            result = result.filter { $0.favorite_bool }
+        }
+
+        if sortAlphabetically {
+            result = result.sorted { $0.title < $1.title }
+        }
+
+        return result
+    }
+    
+    private func recipeRow(recipe: Recipe) -> some View {
+        HStack {
+            Button(action: {
+                toggleFavorite(for: recipe)
+            }) {
+                Image(systemName: recipe.favorite_bool ? "star.fill" : "star")
+                    .foregroundColor(recipe.favorite_bool ? .yellow : .gray)
+            }
+            .buttonStyle(BorderlessButtonStyle())
+
+            VStack(alignment: .leading) {
+                Text(recipe.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(recipe.ingredients)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func toggleFavorite(for recipe: Recipe) {
+        if let index = recipes.firstIndex(where: { $0.id == recipe.id }) {
+            withAnimation {
+                recipes[index].favorite_bool.toggle()
+            }
+        }
+    }
+    
+    // MARK: - Deleting Items
+    private func deleteItems(offsets: IndexSet) {
+        withAnimation {
+            for index in offsets {
+                modelContext.delete(recipes[index])
+            }
+        }
+    }
+}
 
 
 // Modal view for adding a new Recipe
