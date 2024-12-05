@@ -12,46 +12,27 @@ struct RecipeDetailView: View {
     var recipe: Recipe
 
     @State private var isPresentingEditView: Bool = false
-    @State private var isPresented: Bool = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Recipe Title
-                Text(recipe.title)
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, 10)
+                // Title and Date
+                headerSection
+                
+                // Other Details
+                otherDetailsSection
 
-                Group {
-                    DetailRow(label: "Date", dateContent: recipe.date, format: .dateTime.year().month().day())
-                    DetailRow(label: "Ingredients", content: recipe.ingredients)
-                    DetailRow(label: "Instructions", content: recipe.instructions)
-                    DetailRow(label: "Servings", content: "\(recipe.servings)")
-                    DetailRow(label: "Difficulty", content: recipe.difficulty)
-                    DetailRow(label: "Calories Per Serving", content: "\(recipe.calories_per_serving)")
-                    DetailRow(label: "Notes", content: recipe.general_notes)
-                }
-                // Categories
-                if !recipe.categories.isEmpty {
-                    Text("Categories")
-                        .font(.headline)
-                        .padding(.top)
-                    ForEach(recipe.categories, id: \.id) { category in
-                        Text(category.name)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(Color.gray.opacity(0.2))
-                            .cornerRadius(8)
-                    }
-                }
+                // Ingredients Section
+                ingredientsSection
+
+                // Instructions Section
+                instructionsSection
+
+                
                 
             }
             .padding()
         }
-            
         .toolbar {
             ToolbarItem {
                 Button("Edit") {
@@ -65,7 +46,80 @@ struct RecipeDetailView: View {
             AddRecipeView(isPresented: $isPresentingEditView, recipeToEdit: recipe)
         }
     }
+
+    // Header Section
+    private var headerSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                // Recipe Title
+                Text(recipe.title)
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                // Categories
+                if !recipe.categories.isEmpty {
+                    HStack {
+                        ForEach(recipe.categories, id: \.id) { category in
+                            Text(category.name)
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 8)
+                                .background(Color.gray.opacity(0.2))
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+            }
+            Spacer()
+
+            // Date
+            Text(recipe.date, format: .dateTime.year().month().day())
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    // Ingredients Section
+    private var ingredientsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Ingredients")
+                .font(.headline)
+            let ingredientsList = recipe.ingredients.split(separator: ",")
+            ForEach(ingredientsList, id: \.self) { ingredient in
+                Text("• \(ingredient)")
+                    .font(.body)
+            }
+        }
+        .padding(.vertical, 10)
+    }
+
+    // Instructions Section
+    private var instructionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Instructions")
+                .font(.headline)
+            let instructionsList = recipe.instructions.split(separator: ",")
+            ForEach(Array(instructionsList.enumerated()), id: \.offset) { index, step in
+                Text("\(index + 1). \(step)")
+                    .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 10)
+    }
+
+    // Other Details Section
+    private var otherDetailsSection: some View {
+        Group {
+            DetailRow(label: "Servings", content: "\(recipe.servings)")
+            DetailRow(label: "Difficulty", content: recipe.difficulty)
+            DetailRow(label: "Calories Per Serving", content: "\(recipe.calories_per_serving)")
+            DetailRow(label: "Notes", content: recipe.general_notes)
+        }
+    }
 }
+
 
 
 // Helper for displaying rows
